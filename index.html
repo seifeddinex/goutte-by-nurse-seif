@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>حاسبة القطرات</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+/* Layout: one column on phone; on wide screens inputs and result on one side, drip chamber on the other. */
+:root{
+  --bg:#f3f7f8; --surface:#ffffff; --ink:#10282e; --muted:#587078; --line:#d5e2e5;
+  --accent:#0a7c8c; --accent-ink:#ffffff; --fluid:#2fa8c4; --alert:#c2410c; --ok:#15803d;
+  --f-display:'Cairo',system-ui,sans-serif; --f-body:'IBM Plex Sans Arabic','Segoe UI',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1a1e; --surface:#13262b; --ink:#e6f2f4; --muted:#93aeb5; --line:#26414a;
+  --accent:#3cc0d4; --accent-ink:#06191d; --fluid:#4cc3dd; --alert:#fb923c; --ok:#4ade80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1a1e; --surface:#13262b; --ink:#e6f2f4; --muted:#93aeb5; --line:#26414a;
+  --accent:#3cc0d4; --accent-ink:#06191d; --fluid:#4cc3dd; --alert:#fb923c; --ok:#4ade80; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding-block:24px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:980px;margin-inline:auto}
+.top{display:flex;gap:12px 20px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;margin-bottom:22px}
+.top>div{min-width:0;flex:1 1 320px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(1.6rem,5vw,2.3rem);line-height:1.2;margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--muted);margin:0;max-width:60ch}
+.lang{display:flex;gap:4px;border:1.5px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
+.lang button{font:inherit;font-size:.88rem;font-weight:600;border:0;background:transparent;color:var(--muted);border-radius:999px;padding:5px 14px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.grid{display:grid;gap:20px;grid-template-columns:1fr}
+@media(min-width:820px){.grid{grid-template-columns:1.1fr .9fr;align-items:start}}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0}
+h2{font-family:var(--f-display);font-size:1.05rem;margin:0 0 14px;font-weight:600;color:var(--muted)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field.full{grid-column:1/-1}
+label{font-size:.9rem;font-weight:500}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.hint{font-size:.8rem;color:var(--muted)}
+.result{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.big{font-family:var(--f-display);font-weight:800;font-size:clamp(3.2rem,12vw,4.6rem);line-height:1;font-variant-numeric:tabular-nums;color:var(--accent)}
+.unit{font-size:1.1rem;color:var(--muted)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.stat{border-top:1px solid var(--line);padding-top:10px}
+.stat b{display:block;font-family:var(--f-display);font-size:1.3rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:.82rem;color:var(--muted)}
+.formula{margin-top:14px;font-size:.85rem;color:var(--muted);direction:ltr;text-align:left;font-variant-numeric:tabular-nums;overflow-x:auto}
+.err{color:var(--alert);font-weight:500;min-height:1.5em;margin:10px 0 0}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{font:inherit;font-size:.85rem;background:transparent;color:var(--ink);border:1.5px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.stage{display:flex;flex-direction:column;align-items:center;gap:14px}
+.chamber{position:relative;width:150px;height:300px;margin-inline:auto;direction:ltr}
+.chamber svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.drop{position:absolute;left:50%;top:62px;width:22px;height:30px;margin-left:-11px;transform-origin:50% 0;
+  background:var(--fluid);border-radius:50% 50% 50% 50%/62% 62% 38% 38%;opacity:0}
+.ripple{position:absolute;left:50%;top:196px;width:60px;height:10px;margin-left:-30px;border:2px solid var(--fluid);border-radius:50%;opacity:0}
+.flash{position:absolute;inset:-6px;border-radius:18px;border:3px solid var(--accent);opacity:0;pointer-events:none}
+.beat{font-family:var(--f-display);font-weight:600;font-size:1rem;color:var(--muted);font-variant-numeric:tabular-nums;min-height:1.6em}
+.controls{display:flex;flex-direction:column;gap:12px;width:100%}
+.go{font:inherit;font-family:var(--f-display);font-weight:800;font-size:1.2rem;border:0;border-radius:12px;padding:14px;cursor:pointer;background:var(--accent);color:var(--accent-ink);width:100%}
+.go[aria-pressed="true"]{background:var(--alert);color:#fff}
+.go:disabled{opacity:.45;cursor:not-allowed}
+.toggles{display:flex;gap:8px 18px;flex-wrap:wrap;justify-content:center}
+.toggles label{display:flex;align-items:center;gap:8px;font-weight:400;font-size:.92rem}
+.toggles input{width:auto;accent-color:var(--accent)}
+.note{font-size:.84rem;color:var(--muted);margin:0;text-align:center;min-height:1.4em}
+.warn{font-size:.82rem;color:var(--muted);margin:14px 0 0}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1 data-i="title"></h1>
+      <p class="sub" data-i="sub"></p>
+    </div>
+    <div class="lang" role="group" aria-label="Language / اللغة / Langue">
+      <button type="button" data-lang="ar" aria-pressed="true">عربي</button>
+      <button type="button" data-lang="fr" aria-pressed="false">Français</button>
+      <button type="button" data-lang="en" aria-pressed="false">English</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+      <section class="card" aria-labelledby="h-in">
+        <h2 id="h-in" data-i="in"></h2>
+        <div class="row">
+          <div class="field full">
+            <label for="vol" data-i="vol"></label>
+            <input id="vol" type="number" inputmode="decimal" min="1" step="any" value="500">
+          </div>
+          <div class="field">
+            <label for="hrs" data-i="hrs"></label>
+            <input id="hrs" type="number" inputmode="numeric" min="0" step="1" value="4">
+          </div>
+          <div class="field">
+            <label for="mins" data-i="mins"></label>
+            <input id="mins" type="number" inputmode="numeric" min="0" step="1" value="0">
+          </div>
+          <div class="field full">
+            <label for="df" data-i="df"></label>
+            <select id="df">
+              <option value="20" data-i="df20" selected></option>
+              <option value="15" data-i="df15"></option>
+              <option value="10" data-i="df10"></option>
+              <option value="60" data-i="df60"></option>
+            </select>
+            <span class="hint" data-i="dfHint"></span>
+          </div>
+        </div>
+        <div class="presets">
+          <button type="button" class="chip" data-v="500" data-h="4" data-m="0" data-d="20" data-i="c1"></button>
+          <button type="button" class="chip" data-v="1000" data-h="8" data-m="0" data-d="20" data-i="c2"></button>
+          <button type="button" class="chip" data-v="100" data-h="0" data-m="30" data-d="20" data-i="c3"></button>
+          <button type="button" class="chip" data-v="250" data-h="2" data-m="0" data-d="60" data-i="c4"></button>
+        </div>
+        <p class="err" id="err" role="alert"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-out">
+        <h2 id="h-out" data-i="out"></h2>
+        <div class="result" aria-live="polite">
+          <span class="big" id="gtt">--</span>
+          <span class="unit" data-i="unitGtt"></span>
+        </div>
+        <div class="stats">
+          <div class="stat"><b id="sec">--</b><span data-i="sec"></span></div>
+          <div class="stat"><b id="mlh">--</b><span data-i="mlh"></span></div>
+        </div>
+        <div class="formula" id="formula" dir="ltr"></div>
+        <p class="warn" data-i="warn"></p>
+      </section>
+    </div>
+
+    <section class="card stage" aria-labelledby="h-viz">
+      <h2 id="h-viz" style="align-self:flex-start" data-i="viz"></h2>
+      <div class="chamber" id="chamber">
+        <div class="flash" id="flash"></div>
+        <svg viewBox="0 0 150 300" aria-hidden="true">
+          <path d="M45 8h60v18c0 6-4 10-10 10H55c-6 0-10-4-10-10z" fill="none" stroke="var(--muted)" stroke-width="3"/>
+          <rect x="30" y="36" width="90" height="190" rx="16" fill="none" stroke="var(--muted)" stroke-width="3"/>
+          <path d="M33 190h84v22c0 8-6 14-14 14H47c-8 0-14-6-14-14z" fill="var(--fluid)" opacity=".35"/>
+          <rect x="70" y="226" width="10" height="66" rx="5" fill="none" stroke="var(--muted)" stroke-width="3"/>
+        </svg>
+        <div class="drop" id="drop"></div>
+        <div class="ripple" id="ripple"></div>
+      </div>
+      <div class="beat" id="beat"></div>
+      <div class="controls">
+        <button type="button" class="go" id="go" aria-pressed="false"></button>
+        <div class="toggles">
+          <label><input type="checkbox" id="optVib" checked> <span data-i="vib"></span></label>
+          <label><input type="checkbox" id="optSnd"> <span data-i="snd"></span></label>
+          <label><input type="checkbox" id="optFlash" checked> <span data-i="flash"></span></label>
+        </div>
+        <p class="note" id="note"></p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  var T={
+    ar:{title:'حاسبة القطرات',
+      sub:'أدخل كمية المصل والمدة ونوع الجهاز. يحسب لك عدد القطرات في الدقيقة، وعند الضغط على «ابدأ» يهتز الهاتف مع كل قطرة باش تضبط السرعة بالعين.',
+      in:'المعطيات',vol:'الحجم الكلي (مل)',hrs:'المدة: ساعات',mins:'دقائق',df:'معامل القطرة (قطرة/مل)',
+      df20:'20 قطرة/مل - جهاز عادي',df15:'15 قطرة/مل - جهاز عادي',df10:'10 قطرات/مل - جهاز عادي (دم)',df60:'60 قطرة/مل - جهاز الأطفال (microgoutte)',
+      dfHint:'القيمة مكتوبة على غلاف الجهاز. تأكد منها دائما.',
+      c1:'500 مل / 4 س',c2:'1000 مل / 8 س',c3:'100 مل / 30 د',c4:'250 مل / 2 س (60)',
+      out:'النتيجة',unitGtt:'قطرة / دقيقة',sec:'ثانية بين كل قطرة',mlh:'مل / ساعة',
+      warn:'أداة مساعدة للتعلم والتذكير. لا تعوض البروتوكول الطبي ولا مراقبة المريض.',
+      viz:'القطرة والإيقاع',start:'ابدأ الإيقاع',stop:'أوقف الإيقاع',stopped:'متوقف',drop:'القطرة رقم ',
+      vib:'اهتزاز',snd:'صوت نقرة',flash:'وميض',
+      noVib:'iPhone لا يسمح للمواقع بالاهتزاز. استعمل الصوت (ارفع الصوت وتأكد أن زر الصامت مقفل) أو الوميض.',
+      yesVib:'الاهتزاز يشتغل في Chrome على أندرويد. حافظ على الشاشة مفتوحة.',
+      errVal:'أدخل حجما ومدة أكبر من صفر.',errFast:'الإيقاع سريع جدا. تحقق من المعطيات.',errSlow:'الإيقاع بطيء جدا. تحقق من المعطيات.'},
+    fr:{title:'Calculateur de gouttes',
+      sub:'Entrez le volume, la durée et le type de perfuseur. Le débit en gouttes par minute est calculé, puis le téléphone vibre à chaque goutte pour régler le rythme.',
+      in:'Données',vol:'Volume total (mL)',hrs:'Durée : heures',mins:'minutes',df:'Facteur de goutte (gttes/mL)',
+      df20:'20 gttes/mL - perfuseur standard',df15:'15 gttes/mL - perfuseur standard',df10:'10 gttes/mL - perfuseur standard (sang)',df60:'60 gttes/mL - pédiatrique (microgoutte)',
+      dfHint:'La valeur est écrite sur l’emballage du perfuseur. Vérifiez-la toujours.',
+      c1:'500 mL / 4 h',c2:'1000 mL / 8 h',c3:'100 mL / 30 min',c4:'250 mL / 2 h (60)',
+      out:'Résultat',unitGtt:'gouttes / minute',sec:'secondes entre deux gouttes',mlh:'mL / heure',
+      warn:'Outil d’aide et d’apprentissage. Il ne remplace ni le protocole médical ni la surveillance du patient.',
+      viz:'Goutte et rythme',start:'Démarrer le rythme',stop:'Arrêter le rythme',stopped:'Arrêté',drop:'Goutte n° ',
+      vib:'Vibration',snd:'Clic sonore',flash:'Flash',
+      noVib:'L’iPhone n’autorise pas la vibration sur les sites web. Utilisez le son (volume monté, mode silencieux désactivé) ou le flash.',
+      yesVib:'La vibration fonctionne sur Chrome Android. Gardez l’écran allumé.',
+      errVal:'Entrez un volume et une durée supérieurs à zéro.',errFast:'Rythme trop rapide. Vérifiez les données.',errSlow:'Rythme trop lent. Vérifiez les données.'},
+    en:{title:'Drip Rate Calculator',
+      sub:'Enter the fluid volume, the time and the drip set type. It gives you drops per minute, then your phone vibrates on every drop so you can match the rhythm by eye.',
+      in:'Inputs',vol:'Total volume (mL)',hrs:'Time: hours',mins:'minutes',df:'Drop factor (gtt/mL)',
+      df20:'20 gtt/mL - standard set',df15:'15 gtt/mL - standard set',df10:'10 gtt/mL - standard set (blood)',df60:'60 gtt/mL - pediatric (microdrip)',
+      dfHint:'The value is printed on the tubing package. Always check it.',
+      c1:'500 mL / 4 h',c2:'1000 mL / 8 h',c3:'100 mL / 30 min',c4:'250 mL / 2 h (60)',
+      out:'Result',unitGtt:'drops / minute',sec:'seconds between drops',mlh:'mL / hour',
+      warn:'A learning and reminder aid. It does not replace the medical protocol or patient monitoring.',
+      viz:'Drop and rhythm',start:'Start rhythm',stop:'Stop rhythm',stopped:'Stopped',drop:'Drop #',
+      vib:'Vibration',snd:'Click sound',flash:'Flash',
+      noVib:'iPhone does not let websites vibrate. Use sound (volume up, silent mode off) or flash.',
+      yesVib:'Vibration works in Chrome on Android. Keep the screen on.',
+      errVal:'Enter a volume and a time greater than zero.',errFast:'Rate is too fast. Check the inputs.',errSlow:'Rate is too slow. Check the inputs.'}
+  };
+  var lang='ar';
+  try{var s=localStorage.getItem('drip-lang');if(s&&T[s])lang=s}catch(e){}
+  var $=function(id){return document.getElementById(id)};
+  var vol=$('vol'),hrs=$('hrs'),mins=$('mins'),df=$('df'),err=$('err');
+  var rate=0,errKey='',running=false,timer=null,next=0,count=0,wake=null,actx=null;
+  var drop=$('drop'),ripple=$('ripple'),flash=$('flash');
+  var lastTick=0,interval=1000,raf=0;
+  var canVib=typeof navigator.vibrate==='function';
+  function t(k){return T[lang][k]}
+  function fmt(n,d){return n.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:0})}
+
+  function applyLang(){
+    var d=document.documentElement;d.lang=lang;d.dir=lang==='ar'?'rtl':'ltr';
+    document.title=t('title');
+    document.querySelectorAll('[data-i]').forEach(function(el){el.textContent=t(el.getAttribute('data-i'))});
+    document.querySelectorAll('[data-lang]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.lang===lang))});
+    $('go').textContent=running?t('stop'):t('start');
+    $('beat').textContent=running?t('drop')+count:t('stopped');
+    $('note').textContent=canVib?t('yesVib'):t('noVib');
+    err.textContent=errKey?t(errKey):'';
+  }
+
+  function calc(){
+    var v=parseFloat(vol.value),h=parseFloat(hrs.value)||0,m=parseFloat(mins.value)||0,f=parseFloat(df.value);
+    var tt=h*60+m; errKey='';
+    function bad(k){rate=0;errKey=k;err.textContent=t(k);$('go').disabled=true;if(running)stop()}
+    if(!(v>0)||!(tt>0)){
+      $('gtt').textContent='--';$('sec').textContent='--';$('mlh').textContent='--';$('formula').textContent='';
+      bad(vol.value===''&&hrs.value===''&&mins.value===''?'':'errVal');
+      if(!errKey)err.textContent='';
+      return;
+    }
+    var r=v*f/tt;
+    $('gtt').textContent=Math.round(r);
+    $('sec').textContent=fmt(60/r,2);
+    $('mlh').textContent=fmt(v/(tt/60),1);
+    $('formula').textContent=fmt(v,1)+' mL × '+f+' gtt/mL ÷ '+fmt(tt,0)+' min = '+fmt(r,1)+' gtt/min';
+    if(r>300){bad('errFast');return}
+    if(r<1){bad('errSlow');return}
+    rate=r;err.textContent='';$('go').disabled=false;
+  }
+
+  /* Drop motion is driven by this loop (not by CSS animations), so a device-wide
+     "reduce motion" setting cannot freeze it. The drop swells, then falls at each tick. */
+  function frame(now){
+    if(!running){return}
+    var since=now-lastTick;
+    var fall=Math.min(450,interval*0.55);
+    var o,y,sx,sy;
+    if(since<fall){
+      var q=since/fall;y=134*q*q;sx=1;sy=1+0.15*q;o=1-0.8*q;
+      if(q>0.9)o*=(1-q)*10;
+    }else{
+      var u=Math.min(1,(since-fall)/Math.max(1,interval-fall));
+      y=0;sx=sy=0.15+0.85*u;o=Math.min(1,u*3);
+    }
+    drop.style.opacity=o;
+    drop.style.transform='translateY('+y+'px) scale('+sx+','+sy+')';
+    var rs=since-fall*0.9;
+    if(rs>0&&rs<420){var rq=rs/420;ripple.style.opacity=0.9*(1-rq);ripple.style.transform='scale('+(0.2+1.1*rq)+')'}
+    else{ripple.style.opacity=0}
+    if($('optFlash').checked){var fd=Math.min(220,interval*0.6);flash.style.opacity=since<fd?0.9*(1-since/fd):0}
+    else flash.style.opacity=0;
+    raf=requestAnimationFrame(frame);
+  }
+
+  /* iOS Safari: audio must be unlocked inside a tap, and Web Audio is muted by the
+     ringer switch unless a media element is playing. A silent looping <audio> fixes that. */
+  var keep=null;
+  function silentWav(){
+    var n=800,b=new Uint8Array(44+n),dv=new DataView(b.buffer),i;
+    function w(o,s){for(var j=0;j<s.length;j++)b[o+j]=s.charCodeAt(j)}
+    w(0,'RIFF');dv.setUint32(4,36+n,true);w(8,'WAVEfmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);
+    dv.setUint16(22,1,true);dv.setUint32(24,8000,true);dv.setUint32(28,8000,true);dv.setUint16(32,1,true);
+    dv.setUint16(34,8,true);w(36,'data');dv.setUint32(40,n,true);
+    for(i=0;i<n;i++)b[44+i]=128;
+    var s='';for(i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);
+    return 'data:audio/wav;base64,'+btoa(s);
+  }
+  function ensureAudio(){
+    try{
+      actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+      if(actx.state!=='running')actx.resume();
+    }catch(e){}
+  }
+  function unlockAudio(){
+    try{navigator.audioSession&&(navigator.audioSession.type='playback')}catch(e){}
+    ensureAudio();
+    try{
+      var bf=actx.createBuffer(1,1,22050),sr=actx.createBufferSource();
+      sr.buffer=bf;sr.connect(actx.destination);sr.start(0);
+    }catch(e){}
+    try{
+      if(!keep){keep=new Audio(silentWav());keep.loop=true;keep.setAttribute('playsinline','')}
+      var p=keep.play();if(p&&p.catch)p.catch(function(){});
+    }catch(e){}
+  }
+  function click(){
+    try{
+      ensureAudio();
+      var o=actx.createOscillator(),g=actx.createGain(),now=actx.currentTime;
+      o.type='sine';o.frequency.value=1000;
+      g.gain.setValueAtTime(.7,now);
+      g.gain.exponentialRampToValueAtTime(.001,now+.08);
+      o.connect(g);g.connect(actx.destination);o.start(now);o.stop(now+.09);
+    }catch(e){}
+  }
+
+  function tick(){
+    interval=60000/rate;
+    count++;
+    lastTick=performance.now();
+    if($('optVib').checked&&canVib){try{navigator.vibrate(Math.min(60,interval*.4))}catch(e){}}
+    if($('optSnd').checked)click();
+    $('beat').textContent=t('drop')+count;
+    next+=interval;
+    var now=performance.now();
+    if(next<now)next=now+interval;
+    timer=setTimeout(tick,Math.max(0,next-now));
+  }
+
+  async function lock(){try{if(navigator.wakeLock)wake=await navigator.wakeLock.request('screen')}catch(e){}}
+  function unlock(){try{if(wake){wake.release();wake=null}}catch(e){}}
+
+  function start(){
+    if(!rate)return;
+    running=true;count=0;
+    $('go').setAttribute('aria-pressed','true');$('go').textContent=t('stop');
+    next=performance.now();
+    unlockAudio();
+    lock();tick();
+    cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
+  }
+  function stop(){
+    running=false;clearTimeout(timer);cancelAnimationFrame(raf);unlock();
+    try{keep&&keep.pause()}catch(e){}
+    $('go').setAttribute('aria-pressed','false');$('go').textContent=t('start');
+    $('beat').textContent=t('stopped');
+    drop.style.opacity=0;ripple.style.opacity=0;flash.style.opacity=0;
+    try{navigator.vibrate&&navigator.vibrate(0)}catch(e){}
+  }
+  function restart(){if(running){clearTimeout(timer);next=performance.now();tick()}}
+
+  $('go').addEventListener('click',function(){running?stop():start()});
+  [vol,hrs,mins,df].forEach(function(el){el.addEventListener('input',function(){calc();restart()})});
+  document.querySelectorAll('.chip').forEach(function(c){c.addEventListener('click',function(){
+    vol.value=c.dataset.v;hrs.value=c.dataset.h;mins.value=c.dataset.m;df.value=c.dataset.d;calc();restart();
+  })});
+  document.querySelectorAll('[data-lang]').forEach(function(b){b.addEventListener('click',function(){
+    lang=b.dataset.lang;try{localStorage.setItem('drip-lang',lang)}catch(e){}
+    applyLang();
+  })});
+  document.addEventListener('visibilitychange',function(){if(running&&!document.hidden&&!wake)lock()});
+
+  $('optSnd').addEventListener('change',function(){if(this.checked&&running)unlockAudio()});
+  if(!canVib)$('optSnd').checked=true;
+  applyLang();calc();
+})();
+</script>
+
+</body>
+</html>
