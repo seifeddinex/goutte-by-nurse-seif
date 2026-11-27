@@ -161,9 +161,10 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
         <button type="button" class="go" id="go" aria-pressed="false"></button>
         <div class="toggles">
           <label><input type="checkbox" id="optVib" checked> <span data-i="vib"></span></label>
-          <label><input type="checkbox" id="optSnd"> <span data-i="snd"></span></label>
+          <label><input type="checkbox" id="optSnd" checked> <span data-i="snd"></span></label>
           <label><input type="checkbox" id="optFlash" checked> <span data-i="flash"></span></label>
         </div>
+        <button type="button" class="chip" id="vibTest" data-i="vibTest"></button>
         <p class="note" id="note"></p>
       </div>
     </section>
@@ -182,7 +183,9 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
       out:'النتيجة',unitGtt:'قطرة / دقيقة',sec:'ثانية بين كل قطرة',mlh:'مل / ساعة',
       warn:'أداة مساعدة للتعلم والتذكير. لا تعوض البروتوكول الطبي ولا مراقبة المريض.',
       viz:'القطرة والإيقاع',start:'ابدأ الإيقاع',stop:'أوقف الإيقاع',stopped:'متوقف',drop:'القطرة رقم ',
-      vib:'اهتزاز',snd:'صوت نقرة',flash:'وميض',
+      vib:'اهتزاز',snd:'صوت نقرة',flash:'وميض',vibTest:'جرّب الاهتزاز',
+      vibOk:'أُرسل أمر الاهتزاز. إذا ما اهتزّ الهاتف، تحقق من إعدادات الاهتزاز واللمس في الهاتف ومن وضع توفير البطارية.',
+      vibBlocked:'المتصفح رفض الاهتزاز. افتح الصفحة مباشرة في Chrome (ماشي داخل تطبيق أو معاينة)، وتأكد أن الهاتف ليس في وضع الصامت وأن «الاهتزاز عند اللمس» مفعّل.',
       noVib:'iPhone لا يسمح للمواقع بالاهتزاز. استعمل الصوت (ارفع الصوت وتأكد أن زر الصامت مقفل) أو الوميض.',
       yesVib:'الاهتزاز يشتغل في Chrome على أندرويد. حافظ على الشاشة مفتوحة.',
       errVal:'أدخل حجما ومدة أكبر من صفر.',errFast:'الإيقاع سريع جدا. تحقق من المعطيات.',errSlow:'الإيقاع بطيء جدا. تحقق من المعطيات.'},
@@ -195,7 +198,9 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
       out:'Résultat',unitGtt:'gouttes / minute',sec:'secondes entre deux gouttes',mlh:'mL / heure',
       warn:'Outil d’aide et d’apprentissage. Il ne remplace ni le protocole médical ni la surveillance du patient.',
       viz:'Goutte et rythme',start:'Démarrer le rythme',stop:'Arrêter le rythme',stopped:'Arrêté',drop:'Goutte n° ',
-      vib:'Vibration',snd:'Clic sonore',flash:'Flash',
+      vib:'Vibration',snd:'Clic sonore',flash:'Flash',vibTest:'Tester la vibration',
+      vibOk:'Commande de vibration envoyée. Si rien ne vibre, vérifiez les réglages de vibration/toucher et le mode économie de batterie.',
+      vibBlocked:'Le navigateur a refusé la vibration. Ouvrez la page directement dans Chrome (pas dans une application), vérifiez que le téléphone n’est pas en silencieux et que le retour haptique est activé.',
       noVib:'L’iPhone n’autorise pas la vibration sur les sites web. Utilisez le son (volume monté, mode silencieux désactivé) ou le flash.',
       yesVib:'La vibration fonctionne sur Chrome Android. Gardez l’écran allumé.',
       errVal:'Entrez un volume et une durée supérieurs à zéro.',errFast:'Rythme trop rapide. Vérifiez les données.',errSlow:'Rythme trop lent. Vérifiez les données.'},
@@ -208,7 +213,9 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
       out:'Result',unitGtt:'drops / minute',sec:'seconds between drops',mlh:'mL / hour',
       warn:'A learning and reminder aid. It does not replace the medical protocol or patient monitoring.',
       viz:'Drop and rhythm',start:'Start rhythm',stop:'Stop rhythm',stopped:'Stopped',drop:'Drop #',
-      vib:'Vibration',snd:'Click sound',flash:'Flash',
+      vib:'Vibration',snd:'Click sound',flash:'Flash',vibTest:'Test vibration',
+      vibOk:'Vibration command sent. If nothing vibrates, check the phone’s vibration/touch feedback settings and battery saver.',
+      vibBlocked:'The browser refused to vibrate. Open the page directly in Chrome (not inside an app or preview), make sure the phone is not on silent and touch feedback is on.',
       noVib:'iPhone does not let websites vibrate. Use sound (volume up, silent mode off) or flash.',
       yesVib:'Vibration works in Chrome on Android. Keep the screen on.',
       errVal:'Enter a volume and a time greater than zero.',errFast:'Rate is too fast. Check the inputs.',errSlow:'Rate is too slow. Check the inputs.'}
@@ -219,7 +226,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
   var vol=$('vol'),hrs=$('hrs'),mins=$('mins'),df=$('df'),err=$('err');
   var rate=0,errKey='',running=false,timer=null,next=0,count=0,wake=null,actx=null;
   var drop=$('drop'),ripple=$('ripple'),flash=$('flash');
-  var lastTick=0,interval=1000,raf=0;
+  var lastTick=0,interval=1000,raf=0,vibWarned=false;
   var canVib=typeof navigator.vibrate==='function';
   function t(k){return T[lang][k]}
   function fmt(n,d){return n.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:0})}
@@ -325,7 +332,11 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
     interval=60000/rate;
     count++;
     lastTick=performance.now();
-    if($('optVib').checked&&canVib){try{navigator.vibrate(Math.min(60,interval*.4))}catch(e){}}
+    if($('optVib').checked&&canVib){
+      var vr=false;
+      try{vr=navigator.vibrate(Math.min(120,interval*.5))}catch(e){}
+      if(vr===false&&!vibWarned){vibWarned=true;$('note').textContent=t('vibBlocked')}
+    }
     if($('optSnd').checked)click();
     $('beat').textContent=t('drop')+count;
     next+=interval;
@@ -368,7 +379,11 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid 
   document.addEventListener('visibilitychange',function(){if(running&&!document.hidden&&!wake)lock()});
 
   $('optSnd').addEventListener('change',function(){if(this.checked&&running)unlockAudio()});
-  if(!canVib)$('optSnd').checked=true;
+  $('vibTest').addEventListener('click',function(){
+    var r=false;
+    try{r=canVib&&navigator.vibrate([250,120,250])}catch(e){r=false}
+    $('note').textContent=!canVib?t('noVib'):(r?t('vibOk'):t('vibBlocked'));
+  });
   applyLang();calc();
 })();
 </script>
